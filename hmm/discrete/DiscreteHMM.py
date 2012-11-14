@@ -90,6 +90,7 @@ class DiscreteHMM(_BaseHMM):
         Helper method that performs the Baum-Welch 'M' step
         for the matrix 'B'.
         '''        
+        # TBD: determine how to include eta() weighing
         B_new = numpy.zeros( (self.n,self.m) ,dtype=self.precision)
         
         for j in xrange(self.n):

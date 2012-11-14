@@ -21,7 +21,7 @@ class _BaseHMM(object):
         
         self.precision = precision
         self.verbose = verbose
-        self.eta = self._eta1
+        self._eta = self._eta1
         
     def _eta1(self,t,T):
         '''
@@ -265,8 +265,8 @@ class _BaseHMM(object):
                 numer = 0.0
                 denom = 0.0
                 for t in xrange(len(observations)-1):
-                    numer += (self.eta(t,len(observations)-1)*xi[t][i][j])
-                    denom += (self.eta(t,len(observations)-1)*gamma[t][i])
+                    numer += (self._eta(t,len(observations)-1)*xi[t][i][j])
+                    denom += (self._eta(t,len(observations)-1)*gamma[t][i])
                 A_new[i][j] = numer/denom
         return A_new
     
