@@ -3,13 +3,16 @@ Created on Oct 31, 2012
 
 @author: GuyZ
 
-The code is based on hmm.py, from QSTK. See below for license details and information.
+This code is based on:
+ - QSTK's HMM implementation - http://wiki.quantsoftware.org/
+ - A Tutorial on Hidden Markov Models and Selected Applications in Speech Recognition, LR RABINER 1989 
 '''
+
 import numpy
 
 class _BaseHMM(object):
     '''
-    classdocs
+    Implements the basis for all deriving classes, but should not be used directly.
     '''
     
     def __init__(self,n,m,precision=numpy.double,verbose=False):
@@ -21,27 +24,35 @@ class _BaseHMM(object):
         self.eta = self._eta1
         
     def _eta1(self,t,T):
+        '''
+        Governs how each sample in the time series should be weighed.
+        This is the default case where each sample has the same weigh, 
+        i.e: this is a 'normal' HMM.
+        '''
         return 1.
-    
-    """
-    Forward-Backward procedure is used to efficiently calculate the probability of the observation, given the model - P(O|model)
-    alpha_t(x) = P(O1...Ot,qt=Sx|model) - The probability of state x and the observation up to time t, given the model.
-    NOTE: only alpha (the forward variable) is actually required to get P(O|model)
-    NOTE 2: The returned value is the log-likelihood of the model. It can be greater than one
-    when using a continous HMM since pdfs are used, and can provide unnormalized values.
-    """   
+      
     def forwardbackward(self,observations):
+        '''
+        Forward-Backward procedure is used to efficiently calculate the probability of the observation, given the model - P(O|model)
+        alpha_t(x) = P(O1...Ot,qt=Sx|model) - The probability of state x and the observation up to time t, given the model.
+        
+        The returned value is the log of the probability, i.e: the log likehood model, give the observation - logL(model|O).
+        
+        In the discrete case, the value returned should be negative, since we are taking the log of actual (discrete)
+        probabilities. In the continuous case, we are using PDFs which aren't normalized into actual probabilities,
+        so the value could be positive.
+        '''        
         alpha = self._calcalpha(observations)
         return numpy.log(sum(alpha[-1]))
     
-    """
-    Calculates 'alpha' the forward variable.
-
-    The alpha variable is a numpy array indexed by time, then state (TxN).
-    alpha[t][i] = the probability of being in state 'i' after observing the 
-    first t symbols.
-    """
     def _calcalpha(self,observations):
+        '''
+        Calculates 'alpha' the forward variable.
+    
+        The alpha variable is a numpy array indexed by time, then state (TxN).
+        alpha[t][i] = the probability of being in state 'i' after observing the 
+        first t symbols.
+        '''        
         alpha = numpy.zeros((len(observations),self.n),dtype=self.precision)
         
         # init stage - alpha_1(x) = pi(x)b_x(O1)
@@ -57,14 +68,14 @@ class _BaseHMM(object):
                 
         return alpha
 
-    """
-    Calculates 'beta' the backward variable.
-    
-    The beta variable is a numpy array indexed by time, then state (TxN).
-    beta[t][i] = the probability of being in state 'i' and then observing the
-    symbols from t+1 to the end (T).
-    """
     def _calcbeta(self,observations):
+        '''
+        Calculates 'beta' the backward variable.
+        
+        The beta variable is a numpy array indexed by time, then state (TxN).
+        beta[t][i] = the probability of being in state 'i' and then observing the
+        symbols from t+1 to the end (T).
+        '''        
         beta = numpy.zeros((len(observations),self.n),dtype=self.precision)
         
         # init stage
@@ -79,28 +90,27 @@ class _BaseHMM(object):
                     
         return beta
     
-    """
-    Find the best state sequence (path), given the model and an observation. I.E: max(P(Q|O,model)).
-    
-    This method is usually used to predict the next state after training. 
-    """
     def decode(self, observations):
+        '''
+        Find the best state sequence (path), given the model and an observation. i.e: max(P(Q|O,model)).
+        
+        This method is usually used to predict the next state after training. 
+        '''        
         # use Viterbi's algorithm. It is possible to add additional algorithms in the future.
         return self._viterbi(observations)
     
-    """
-    Find the best state sequence (path) using viterbi algorithm - a method of dynamic programming,
-    very similar to the forward-backward algorithm, with the added step of maximization and eventual
-    backtracing.
-    
-    delta[t][i] = max(P[q1..qt=i,O1...Ot|model] - the path ending in Si and until time t,
-    that generates the highest probability.
-    
-    psi[t][i] = argmax(delta[t-1][i]*aij) - the index of the maximizing state in time (t-1), 
-    i.e: the previous state.
-    
-    """
     def _viterbi(self, observations):
+        '''
+        Find the best state sequence (path) using viterbi algorithm - a method of dynamic programming,
+        very similar to the forward-backward algorithm, with the added step of maximization and eventual
+        backtracing.
+        
+        delta[t][i] = max(P[q1..qt=i,O1...Ot|model] - the path ending in Si and until time t,
+        that generates the highest probability.
+        
+        psi[t][i] = argmax(delta[t-1][i]*aij) - the index of the maximizing state in time (t-1), 
+        i.e: the previous state.
+        '''        
         delta = numpy.zeros((len(observations),self.n),dtype=self.precision)
         psi = numpy.zeros((len(observations),self.n),dtype=self.precision)
         
@@ -132,15 +142,15 @@ class _BaseHMM(object):
             path[len(observations)-i-1] = psi[len(observations)-i][ path[len(observations)-i] ]
         
         return path
-    
-    """
-    Calculates 'xi', a joint probability from the 'alpha' and 'beta' variables.
-    
-    The xi variable is a numpy array indexed by time, state, and state (TxNxN).
-    xi[t][i][j] = the probability of being in state 'i' at time 't', and 'j' at
-    time 't+1' given the entire observation sequence.
-    """    
+     
     def _calcxi(self,observations,alpha=None,beta=None):
+        '''
+        Calculates 'xi', a joint probability from the 'alpha' and 'beta' variables.
+        
+        The xi variable is a numpy array indexed by time, state, and state (TxNxN).
+        xi[t][i][j] = the probability of being in state 'i' at time 't', and 'j' at
+        time 't+1' given the entire observation sequence.
+        '''        
         if alpha is None:
             alpha = self._calcalpha(observations)
         if beta is None:
@@ -168,13 +178,13 @@ class _BaseHMM(object):
                     
         return xi
 
-    """
-    Calculates 'gamma' from xi.
-    
-    Gamma is a (TxN) numpy array, where gamma[t][i] = the probability of being
-    in state 'i' at time 't' given the full observation sequence.
-    """    
     def _calcgamma(self,xi,seqlen):
+        '''
+        Calculates 'gamma' from xi.
+        
+        Gamma is a (TxN) numpy array, where gamma[t][i] = the probability of being
+        in state 'i' at time 't' given the full observation sequence.
+        '''        
         gamma = numpy.zeros((seqlen,self.n),dtype=self.precision)
         
         for t in xrange(seqlen):
@@ -183,22 +193,24 @@ class _BaseHMM(object):
         
         return gamma
     
-    """
-    Updates this HMMs parameters given a new set of observed sequences.
-    
-    observations can either be a single (1D) array of observed symbols, or a 2D
-    matrix, each row of which is a seperate sequence. The Baum-Welch update
-    is repeated 'iterations' times, or until the sum absolute change in
-    each matrix is less than the given epsilon.  If given multiple
-    sequences, each sequence is used to update the parameters in order, and
-    the sum absolute change is calculated once after all the sequences are
-    processed.
-    """    
     def train(self, observations, iterations=1,epsilon=0.0001,thres=-0.001):
+        '''
+        Updates the HMMs parameters given a new set of observed sequences.
+        
+        observations can either be a single (1D) array of observed symbols, or when using
+        a continuous HMM, a 2D array (matrix), where each row denotes a multivariate
+        time sample (multiple features).
+        
+        Training is repeated 'iterations' times, or until log likelihood of the model
+        increases by less than 'epsilon'.
+        
+        'thres' denotes the algorithms sensitivity to the log likelihood decreasing
+        from one iteration to the other.
+        '''        
         self._mapB(observations)
         
         for i in xrange(iterations):
-            prob_old, prob_new = self.trainiter(observations) # train iter should also update model and cacheB
+            prob_old, prob_new = self.trainiter(observations)
 
             if (self.verbose):      
                 print "iter: ", i, ", L(model|O) =", prob_old, ", L(model_new|O) =", prob_new, ", converging =", ( prob_new-prob_old > thres )
@@ -208,10 +220,21 @@ class _BaseHMM(object):
                 break
                 
     def _updatemodel(self,new_model):
+        '''
+        Replaces the current model parameters with the new ones.
+        '''
         self.pi = new_model['pi']
         self.A = new_model['A']
                 
     def trainiter(self,observations):
+        '''
+        A single iteration of an EM algorithm, which given the current HMM,
+        computes new model parameters and internally replaces the old model
+        with the new one.
+        
+        Returns the log likelihood of the old model (before the update),
+        and the one for the new model.
+        '''        
         # call the EM algorithm
         new_model = self._baumwelch(observations)
         
@@ -229,10 +252,13 @@ class _BaseHMM(object):
         
         return prob_old, prob_new
     
-    """
-    new transitions probability matrix A is set to: expected_transitions(i->j)/expected_transitions(i)
-    """
     def _reestimateA(self,observations,xi,gamma):
+        '''
+        Reestimation of the transition matrix (part of the 'M' step of Baum-Welch).
+        Computes A_new = expected_transitions(i->j)/expected_transitions(i)
+        
+        Returns A_new, the modified transition matrix. 
+        '''
         A_new = numpy.zeros((self.n,self.n),dtype=self.precision)
         for i in xrange(self.n):
             for j in xrange(self.n):
@@ -245,6 +271,15 @@ class _BaseHMM(object):
         return A_new
     
     def _calcstats(self,observations):
+        '''
+        Calculates required statistics of the current model, as part
+        of the Baum-Welch 'E' step.
+        
+        Deriving classes should override (extend) this method to include
+        any additional computations their model requires.
+        
+        Returns 'stat's, a dictionary containing required statistics.
+        '''
         stats = {}
         
         stats['alpha'] = self._calcalpha(observations)
@@ -255,6 +290,15 @@ class _BaseHMM(object):
         return stats
     
     def _reestimate(self,stats,observations):
+        '''
+        Performs the 'M' step of the Baum-Welch algorithm.
+        
+        Deriving classes should override (extend) this method to include
+        any additional computations their model requires.
+        
+        Returns 'new_model', a dictionary containing the new maximized
+        model's parameters.
+        '''        
         new_model = {}
         
         # new init vector is set to the frequency of being in each step at t=0 
@@ -262,19 +306,14 @@ class _BaseHMM(object):
         new_model['A'] = self._reestimateA(observations,stats['xi'],stats['gamma'])
         
         return new_model
-        
     
-    """
-    An EM(expectation-modification) algorithm devised by Baum-Welch. Finds a local maximum
-    that outputs the model that produces the highest probability, given a set of observations.
-    
-    xi[t][i][j] = P(qt=Si, qt+1=Sj|O,model) - the probability of being in state i at time t,
-    and in state j at time t+1, given the ENTIRE observation sequence.
-    
-    gamma[t][i] = sum(xi[i][j]) - the probability of being in state i at time t, given the ENTIRE 
-    observation sequence.
-    """
     def _baumwelch(self,observations):
+        '''
+        An EM(expectation-modification) algorithm devised by Baum-Welch. Finds a local maximum
+        that outputs the model that produces the highest probability, given a set of observations.
+        
+        Returns the new maximized model parameters
+        '''        
         # E step - calculate statistics
         stats = self._calcstats(observations)
         
@@ -282,5 +321,19 @@ class _BaseHMM(object):
         return self._reestimate(stats,observations)
 
     def _mapB(self,observations):
+        '''
+        Deriving classes should implement this method, so that it maps the observations'
+        mass/density Bj(Ot) to Bj(t).
+        
+        This method has no explicit return value, but it expects that 'self.B_map' is internally computed
+        as mentioned above. 'self.B_map' is an (TxN) numpy array.
+        
+        The purpose of this method is to create a common parameter that will conform both to the discrete
+        case where PMFs are used, and the continuous case where PDFs are used.
+        
+        For the continuous case, since PDFs of vectors could be computationally 
+        expensive (Matrix multiplications), this method also serves as a caching mechanism to significantly
+        increase performance.
+        '''
         raise NotImplementedError("a mapping function for B(observable probabilities) must be implemented")
         
