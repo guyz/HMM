@@ -31,7 +31,7 @@ class _BaseHMM(object):
         '''
         return 1.
       
-    def forwardbackward(self,observations):
+    def forwardbackward(self,observations, cache=False):
         '''
         Forward-Backward procedure is used to efficiently calculate the probability of the observation, given the model - P(O|model)
         alpha_t(x) = P(O1...Ot,qt=Sx|model) - The probability of state x and the observation up to time t, given the model.
@@ -41,7 +41,10 @@ class _BaseHMM(object):
         In the discrete case, the value returned should be negative, since we are taking the log of actual (discrete)
         probabilities. In the continuous case, we are using PDFs which aren't normalized into actual probabilities,
         so the value could be positive.
-        '''        
+        '''
+        if (cache==False):
+            self._mapB(observations)
+        
         alpha = self._calcalpha(observations)
         return numpy.log(sum(alpha[-1]))
     
@@ -110,7 +113,10 @@ class _BaseHMM(object):
         
         psi[t][i] = argmax(delta[t-1][i]*aij) - the index of the maximizing state in time (t-1), 
         i.e: the previous state.
-        '''        
+        '''
+        # similar to the forward-backward algorithm, we need to make sure that we're using fresh data for the given observations.
+        self._mapB(observations)
+        
         delta = numpy.zeros((len(observations),self.n),dtype=self.precision)
         psi = numpy.zeros((len(observations),self.n),dtype=self.precision)
         
@@ -137,10 +143,9 @@ class _BaseHMM(object):
                 path[len(observations)-1] = i
         
         # path backtracing
-        path = numpy.zeros((len(observations)),dtype=self.precision)
+#        path = numpy.zeros((len(observations)),dtype=self.precision) ### 2012-11-17 - BUG FIX: wrong reinitialization destroyed the last state in the path
         for i in xrange(1, len(observations)):
             path[len(observations)-i-1] = psi[len(observations)-i][ path[len(observations)-i] ]
-        
         return path
      
     def _calcxi(self,observations,alpha=None,beta=None):
@@ -239,16 +244,13 @@ class _BaseHMM(object):
         new_model = self._baumwelch(observations)
         
         # calculate the log likelihood of the previous model
-        prob_old = self.forwardbackward(observations)
+        prob_old = self.forwardbackward(observations, cache=True)
         
         # update the model with the new estimation
         self._updatemodel(new_model)
         
-        # map observable probabilities
-        self._mapB(observations)
-        
-        # calculate the log likelihood of the new model
-        prob_new = self.forwardbackward(observations)
+        # calculate the log likelihood of the new model. Cache set to false in order to recompute probabilities of the observations give the model.
+        prob_new = self.forwardbackward(observations, cache=False)
         
         return prob_old, prob_new
     
